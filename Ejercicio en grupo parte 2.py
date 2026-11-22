@@ -1,3 +1,119 @@
+"""Sistema Integral de Gestión de Clientes, Servicios y Reservas
+Empresa: Software FJ"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from datetime import datetime
+from enum import Enum
+import logging
+import re
+from typing import Optional
+
+# ---------------------------------------------------------------------
+# Registro de eventos y errores
+# ---------------------------------------------------------------------
+
+logging.basicConfig(
+    filename="software_fj.log",
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    encoding="utf-8",)
+
+logger = logging.getLogger("SoftwareFJ")
+
+
+# ---------------------------------------------------------------------
+# Excepciones personalizadas
+# ---------------------------------------------------------------------
+
+class SistemaError(Exception):
+    """Excepción base del sistema."""
+
+
+class ValidacionError(SistemaError):
+    """Datos o parámetros que no cumplen las reglas."""
+
+
+class NoEncontradoError(SistemaError):
+    """El objeto solicitado no existe."""
+
+
+class OperacionNoPermitidaError(SistemaError):
+    """La operación no está permitida para el estado actual."""
+
+
+class ServicioNoDisponibleError(SistemaError):
+    """El servicio no está disponible."""
+
+
+class ReservaError(SistemaError):
+    """Error relacionado con una reserva."""
+
+
+# ---------------------------------------------------------------------
+# Entidad abstracta
+# ---------------------------------------------------------------------
+
+class Entidad(ABC):
+    def __init__(self, identificador: str):
+        if not isinstance(identificador, str) or not identificador.strip():
+            raise ValidacionError("El identificador es obligatorio.")
+        self._id = identificador.strip()
+
+    @property
+    def id(self) -> str:
+        return self._id
+
+    @abstractmethod
+    def descripcion(self) -> str:
+        pass
+
+# ---------------------------------------------------------------------
+# Cliente
+# ---------------------------------------------------------------------
+
+class Cliente(Entidad):
+    def __init__(self, identificador: str, nombre: str, correo: str, telefono: str):
+        super().__init__(identificador)
+        self.nombre = nombre
+        self.correo = correo
+        self.telefono = telefono
+
+    @property
+    def nombre(self) -> str:
+        return self._nombre
+
+    @nombre.setter
+    def nombre(self, valor: str):
+        if not isinstance(valor, str) or len(valor.strip()) < 2:
+            raise ValidacionError("El nombre debe contener al menos 2 caracteres.")
+        self._nombre = valor.strip()
+
+    @property
+    def correo(self) -> str:
+        return self._correo
+
+    @correo.setter
+    def correo(self, valor: str):
+        if not isinstance(valor, str) or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", valor.strip()):
+            raise ValidacionError("El correo electrónico no tiene un formato válido.")
+        self._correo = valor.strip().lower()
+
+    @property
+    def telefono(self) -> str:
+        return self._telefono
+
+    @telefono.setter
+    def telefono(self, valor: str):
+        if not isinstance(valor, str) or not re.fullmatch(r"[0-9+\-\s]{7,18}", valor.strip()):
+            raise ValidacionError("El teléfono debe contener entre 7 y 18 caracteres numéricos válidos.")
+        self._telefono = valor.strip()
+
+    def descripcion(self) -> str:
+        return f"Cliente {self.id}: {self.nombre} | {self.correo} | {self.telefono}"
+
+
 # ---------------------------------------------------------------------
 # Servicios: abstracción, herencia y polimorfismo
 # ---------------------------------------------------------------------
