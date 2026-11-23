@@ -281,3 +281,256 @@ class Reserva(Entidad):
                 f"{self.estado.value} | Total: {total}")
 
 
+# ---------------------------------------------------------------------
+# Administrador en memoria: listas internas, sin base de datos
+# ---------------------------------------------------------------------
+class ValidacionError(Exception):
+    pass
+
+class NoEncontradoError(Exception):
+    pass
+
+class Cliente:
+    def __init__(self, id, nombre, correo, telefono):
+        if not nombre or "@" not in correo or "." not in correo:
+            raise ValidacionError("Correo invalido.")
+        if not telefono or len(str(telefono)) < 7:
+            raise ValidacionError("Telefono invalido.")
+        self.id = id
+        self.nombre = nombre
+        self.correo = correo
+        self.telefono = telefono
+
+    def descripcion(self):
+        return f"{self.id} - {self.nombre} ({self.correo}) Tel: {self.telefono}"
+
+class Servicio:
+    def __init__(self, codigo, nombre, tarifa):
+        if tarifa <= 0:
+            raise ValidacionError("La tarifa debe ser mayor a 0.")
+        self.codigo = codigo
+        self.nombre = nombre
+        self.tarifa = tarifa
+
+    def descripcion(self):
+        return f"{self.codigo} - {self.nombre}: ${self.tarifa}"
+
+    def calcular_costo(self, duracion, descuento=0.0, incluir_impuesto=True, **parametros):
+        if duracion <= 0:
+            raise ValidacionError("La duracion debe ser mayor a 0.")
+        if descuento < 0 or descuento > 100:
+            raise ValidacionError("El descuento debe estar entre 0 y 100.")
+        costo = self.tarifa * duracion
+        costo = costo * (1 - descuento / 100)
+        if incluir_impuesto:
+            costo = costo * 1.19
+        return costo
+
+class ReservaSala(Servicio):
+    def calcular_costo(self, duracion, descuento=0.0, incluir_impuesto=True, personas=1, **parametros):
+        costo = super().calcular_costo(duracion, descuento, incluir_impuesto, **parametros)
+        if personas > 10:
+            costo += (personas - 10) * 5000
+        return costo
+
+class AlquilerEquipo(Servicio):
+    def calcular_costo(self, duracion, descuento=0.0, incluir_impuesto=True, cantidad=1, **parametros):
+        if cantidad <= 0:
+            raise ValidacionError("La cantidad debe ser mayor a 0.")
+        costo_base = super().calcular_costo(duracion, descuento, incluir_impuesto, **parametros)
+        return costo_base * cantidad
+
+class AsesoriaEspecializada(Servicio):
+    def calcular_costo(self, duracion, descuento=0.0, incluir_impuesto=True, nivel="basico", **parametros):
+        costo = super().calcular_costo(duracion, descuento, incluir_impuesto, **parametros)
+        if nivel == "premium":
+            costo = costo * 1.5
+        return costo
+
+class Reserva:
+    def __init__(self, id, cliente, servicio, duracion, **parametros):
+        if duracion <= 0:
+            raise ValidacionError("La duracion debe ser mayor a 0.")
+        self.id = id
+        self.cliente = cliente
+        self.servicio = servicio
+        self.duracion = duracion
+        self.parametros = parametros
+
+    def descripcion(self):
+        total = self.servicio.calcular_costo(self.duracion, **self.parametros)
+        return f"{self.id} - {self.cliente.nombre} reservo {self.servicio.nombre} por {self.duracion}h - Total: ${total:.2f}"
+class GestorSoftwareFJ:
+    def __init__(self):
+        self._clientes: list[Cliente] = []
+        self._servicios: list[Servicio] = []
+        self._reservas: list[Reserva] = []
+
+    def registrar_cliente(self, cliente: Cliente):
+        if not isinstance(cliente, Cliente):
+            raise ValidacionError("El objeto no es un cliente.")
+        if any(c.id == cliente.id for c in self._clientes):
+            raise ValidacionError(f"Ya existe el cliente con ID {cliente.id}.")
+        self._clientes.append(cliente)
+        logger.info("Cliente registrado: %s", cliente.id)
+
+    def agregar_servicio(self, servicio: Servicio):
+        if not isinstance(servicio, Servicio):
+            raise ValidacionError("El objeto no es un servicio válido.")
+        if any(s.id == servicio.id for s in self._servicios):
+            raise ValidacionError(f"Ya existe el servicio con ID {servicio.id}.")
+        self._servicios.append(servicio)
+        logger.info("Servicio agregado: %s", servicio.id)
+
+    def crear_reserva(self, reserva: Reserva):
+        if any(r.id == reserva.id for r in self._reservas):
+            raise ValidacionError(f"Ya existe la reserva con ID {reserva.id}.")
+        if not any(c.id == reserva.cliente.id for c in self._clientes):
+            raise NoEncontradoError("El cliente no está registrado en el sistema.")
+        if not any(s.id == reserva.servicio.id for s in self._servicios):
+            raise NoEncontradoError("El servicio no está registrado en el sistema.")
+        self._reservas.append(reserva)
+        logger.info("Reserva creada: %s", reserva.id)
+
+    def buscar_cliente(self, identificador: str) -> Cliente:
+        for cliente in self._clientes:
+            if cliente.id == identificador:
+                return cliente
+        raise NoEncontradoError(f"No existe el cliente {identificador}.")
+
+    def listar_clientes(self):
+        return [c.descripcion() for c in self._clientes]
+
+    def listar_servicios(self):
+        return [s.descripcion() for s in self._servicios]
+
+    def listar_reservas(self):
+        return [r.descripcion() for r in self._reservas]
+
+    # Sobrecarga simulada en Python mediante parámetros opcionales:
+    # calcular_cotizacion(servicio, duracion)
+    # calcular_cotizacion(servicio, duracion, descuento, incluir_impuesto)
+    def calcular_cotizacion(self, servicio: Servicio, duracion: float,
+                            descuento: float = 0.0, incluir_impuesto: bool = True,
+                            **parametros) -> float:
+        return servicio.calcular_costo(duracion, descuento, incluir_impuesto, **parametros)
+
+
+# ---------------------------------------------------------------------
+# Demostración automática: más de 10 operaciones, con errores controlados
+# ---------------------------------------------------------------------
+
+def ejecutar_demostracion():
+    gestor = GestorSoftwareFJ()
+    print("=" * 68)
+    print(" SOFTWARE FJ - SISTEMA INTEGRAL DE CLIENTES, SERVICIOS Y RESERVAS")
+    print("=" * 68)
+
+    def ejecutar(numero: int, titulo: str, operacion):
+        print(f"\n[{numero}] {titulo}")
+        try:
+            resultado = operacion()
+        except SistemaError as exc:
+            logger.warning("Operación %s controlada: %s", numero, exc)
+            print(f"  ERROR CONTROLADO: {exc}")
+        except Exception as exc:
+            logger.exception("Error inesperado en operación %s.", numero)
+            print(f"  ERROR INESPERADO CONTROLADO: {exc}")
+        else:
+            if resultado is not None:
+                print(f"  OK: {resultado}")
+            else:
+                print("  OK: operación completada.")
+        finally:
+            print("  Operación finalizada; el sistema continúa.")
+
+    # 1 y 2: clientes válidos
+    c1 = Cliente("C001", "Ana Torres", "ana@example.com", "3001234567")
+    c2 = Cliente("C002", "Luis Pérez", "luis@example.com", "+573001112233")
+    ejecutar(1, "Registrar cliente válido Ana", lambda: gestor.registrar_cliente(c1))
+    ejecutar(2, "Registrar cliente válido Luis", lambda: gestor.registrar_cliente(c2))
+
+    # 3: cliente inválido
+    ejecutar(3, "Intentar registrar cliente con correo inválido",
+             lambda: Cliente("C003", "Mario", "correo-invalido", "3001234567"))
+
+    # 4: servicio de sala
+    sala = ReservaSala("S001", "Sala Ejecutiva", 50000)
+    ejecutar(4, "Crear y registrar servicio de sala", lambda: gestor.agregar_servicio(sala))
+
+    # 5: alquiler de equipo
+    equipo = AlquilerEquipo("S002", "Proyector HD", 35000)
+    ejecutar(5, "Crear y registrar servicio de alquiler", lambda: gestor.agregar_servicio(equipo))
+
+    # 6: asesoría
+    asesoria = AsesoriaEspecializada("S003", "Consultoría de software", 80000)
+    ejecutar(6, "Crear y registrar servicio de asesoría", lambda: gestor.agregar_servicio(asesoria))
+
+    # 7: servicio incorrecto
+    ejecutar(7, "Intentar crear servicio con tarifa negativa",
+             lambda: ReservaSala("S004", "Sala defectuosa", -100))
+
+    # 8: cotización normal
+    ejecutar(8, "Calcular cotización de sala (2 horas, 5 personas)",
+             lambda: f"${gestor.calcular_cotizacion(sala, 2, personas=5):,.2f}")
+
+    # 9: cotización con descuento y sin impuesto
+    ejecutar(9, "Calcular cotización de equipo (3 días, 2 unidades, 10% descuento, sin IVA)",
+             lambda: f"${gestor.calcular_cotizacion(equipo, 3, 10, False, cantidad=2):,.2f}")
+
+    # 10: reserva exitosa y confirmación
+    r1 = Reserva("R001", c1, sala, 2, personas=8)
+    ejecutar(10, "Crear reserva válida", lambda: gestor.crear_reserva(r1))
+    ejecutar(11, "Confirmar reserva", lambda: r1.confirmar())
+
+    # 12: procesar reserva
+    ejecutar(12, "Procesar reserva confirmada", lambda: f"Total ${r1.procesar():,.2f}")
+
+    # 13: intento de procesar nuevamente
+    ejecutar(13, "Intentar procesar otra vez una reserva ya procesada",
+             lambda: r1.procesar())
+
+    # 14: reserva con duración inválida
+    ejecutar(14, "Intentar reservar sala durante 20 horas",
+             lambda: Reserva("R002", c2, sala, 20, personas=4))
+
+    # 15: servicio no disponible
+    servicio_suspendido = ReservaSala("S005", "Sala en mantenimiento", 40000, False)
+    ejecutar(15, "Intentar reservar un servicio no disponible",
+             lambda: Reserva("R003", c2, servicio_suspendido, 1, personas=2))
+
+    # 16: cancelar una reserva pendiente
+    r2 = Reserva("R004", c2, equipo, 1, cantidad=1)
+    ejecutar(16, "Crear reserva pendiente para cancelación", lambda: gestor.crear_reserva(r2))
+    ejecutar(17, "Cancelar reserva pendiente", lambda: r2.cancelar())
+
+    print("\n" + "=" * 68)
+    print("RESUMEN EN MEMORIA")
+    print("- Clientes:")
+    for elemento in gestor.listar_clientes():
+        print("  " + elemento)
+    print("- Servicios:")
+    for elemento in gestor.listar_servicios():
+        print("  " + elemento)
+    print("- Reservas:")
+    for elemento in gestor.listar_reservas():
+        print("  " + elemento)
+    print("\nLos eventos y errores se registraron en: software_fj.log")
+    print("La información operativa permanece en memoria durante esta ejecución.")
+    print("=" * 68)
+
+
+if __name__ == "__main__":
+    try:
+        ejecutar_demostracion()
+    except KeyboardInterrupt:
+        logger.warning("Ejecución interrumpida por el usuario.")
+        print("\nEjecución interrumpida. El registro de eventos fue conservado.")
+    except Exception as exc:
+        # Última barrera: evita que una excepción no prevista cierre silenciosamente.
+        logger.exception("Fallo crítico controlado en el programa principal.")
+        print(f"Se presentó un error crítico controlado: {exc}")
+    finally:
+        logging.shutdown()
+
+
